@@ -65,7 +65,7 @@ class AssessmentHelper {
         loadingIndicator.id = "loadingIndicator";
         loadingIndicator.style.cssText = "border: 4px solid rgba(255, 255, 255, 0.3); border-radius: 50%; border-top: 4px solid #fff; width: 20px; height: 20px; animation: spin 1s linear infinite; display: none;";
         const buttonTextSpan = document.createElement("span");
-        buttonTextSpan.textContent = "🫆Show Hint🫆";
+        buttonTextSpan.textContent = "Show Hint";
         buttonTextSpan.id = "getAnswerButtonText";
         getAnswerButton.appendChild(loadingIndicator);
         getAnswerButton.appendChild(buttonTextSpan);
