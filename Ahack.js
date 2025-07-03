@@ -65,7 +65,7 @@ class AssessmentHelper {
         loadingIndicator.id = "loadingIndicator";
         loadingIndicator.style.cssText = "border: 4px solid rgba(255, 255, 255, 0.3); border-radius: 50%; border-top: 4px solid #fff; width: 20px; height: 20px; animation: spin 1s linear infinite; display: none;";
         const buttonTextSpan = document.createElement("span");
-        buttonTextSpan.textContent = "Start";
+        buttonTextSpan.textContent = "Hint"; // changed from "Start" to "Hint"
         buttonTextSpan.id = "getAnswerButtonText";
         getAnswerButton.appendChild(loadingIndicator);
         getAnswerButton.appendChild(buttonTextSpan);
@@ -336,6 +336,12 @@ class AssessmentHelper {
                     visibility: visible;
                     transform: translateY(-50%) scale(1);
                 }
+                .assessment-helper-highlight {
+                    background: #ffe066 !important;
+                    border: 2px solid #ffd700 !important;
+                    box-shadow: 0 0 8px 2px #ffe066;
+                    transition: background 0.3s, border 0.3s;
+                }
                 #dismissDiscordPopupCheckbox:checked::before {
                     content: '\\2713';
                     display: block;
@@ -432,83 +438,40 @@ class AssessmentHelper {
                 if (buttonTextSpan) buttonTextSpan.style.display = 'none';
                 if (loadingIndicator) loadingIndicator.style.display = 'block';
                 await this.logToDataEndpoint(novaButtonClickCount);
-                const processQuestion = async (excludedAnswers = []) => {
-                    try {
-                        let queryContent = await this.fetchArticleContent();
-                        queryContent += "\n\nPROVIDE ONLY A ONE-LETTER ANSWER THAT'S IT NOTHING ELSE (A, B, C, or D).";
-                        if (excludedAnswers.length > 0) {
-                            queryContent += `\n\nDo not pick letter ${excludedAnswers.join(', ')}.`;
+
+                // Remove previous highlights
+                const prevHighlights = document.querySelectorAll('.assessment-helper-highlight');
+                prevHighlights.forEach(el => el.classList.remove('assessment-helper-highlight'));
+
+                try {
+                    let queryContent = await this.fetchArticleContent();
+                    queryContent += "\n\nPROVIDE ONLY A ONE-LETTER ANSWER THAT'S IT NOTHING ELSE (A, B, C, or D).";
+                    const answer = await this.fetchAnswer(queryContent);
+                    answerContent.textContent = answer;
+                    answerContainer.style.display = 'flex';
+                    answerContainer.style.visibility = 'visible';
+                    answerContainer.classList.add('show');
+                    if (answer && ['A', 'B', 'C', 'D'].includes(answer.trim())) {
+                        const trimmedAnswer = answer.trim();
+                        const options = document.querySelectorAll('[role="radio"]');
+                        const index = trimmedAnswer.charCodeAt(0) - 'A'.charCodeAt(0);
+                        if (options[index]) {
+                            options[index].classList.add('assessment-helper-highlight');
+                        } else {
+                            answerContent.textContent = `Error: Option ${trimmedAnswer} not found on page.`;
                         }
-                        const answer = await this.fetchAnswer(queryContent);
-                        answerContent.textContent = answer;
-                        answerContainer.style.display = 'flex';
-                        answerContainer.style.visibility = 'visible';
-                        answerContainer.classList.add('show');
-                        if (answer && ['A', 'B', 'C', 'D'].includes(answer.trim()) && !excludedAnswers.includes(answer.trim())) {
-                            const trimmedAnswer = answer.trim();
-                            const options = document.querySelectorAll('[role="radio"]');
-                            const index = trimmedAnswer.charCodeAt(0) - 'A'.charCodeAt(0);
-                            if (options[index]) {
-                                options[index].click();
-                                await new Promise(resolve => setTimeout(async () => {
-                                    const submitButton = Array.from(document.querySelectorAll('button'))
-                                        .find(button => button.textContent.trim() === 'Submit');
-                                    if (submitButton) {
-                                        submitButton.click();
-                                        await new Promise(resolve => setTimeout(async () => {
-                                            const nextButton = document.getElementById('feedbackActivityFormBtn');
-                                            if (nextButton) {
-                                                const buttonText = nextButton.textContent.trim();
-                                                nextButton.click();
-                                                if (buttonText === 'Try again') {
-                                                    await new Promise(resolve => setTimeout(async () => {
-                                                        answerContainer.style.display = 'none';
-                                                        answerContainer.classList.remove('show');
-                                                        await processQuestion([...excludedAnswers, trimmedAnswer]);
-                                                        resolve();
-                                                    }, 1000));
-                                                } else {
-                                                    await new Promise(resolve => setTimeout(async () => {
-                                                        const newQuestionRadio = document.querySelector('[role="radio"]');
-                                                        const newSubmitButton = Array.from(document.querySelectorAll('button'))
-                                                            .find(button => button.textContent.trim() === 'Submit');
-                                                        if (newSubmitButton && newQuestionRadio) {
-                                                            answerContainer.style.display = 'none';
-                                                            answerContainer.classList.remove('show');
-                                                            await processQuestion();
-                                                        } else {
-                                                            answerContent.textContent = "Processing complete or no more questions found.";
-                                                        }
-                                                        resolve();
-                                                    }, 1500));
-                                                }
-                                            } else {
-                                                answerContent.textContent = 'Submit processed, but next step button not found.';
-                                            }
-                                            resolve();
-                                        }, 1000));
-                                    } else {
-                                        answerContent.textContent = 'Error: Submit button not found.';
-                                    }
-                                    resolve();
-                                }, 500));
-                            } else {
-                                answerContent.textContent = `Error: Option ${trimmedAnswer} not found on page.`;
-                            }
-                        }
-                    } catch (error) {
-                        answerContent.textContent = `Error: ${error.message}`;
-                        answerContainer.style.display = 'flex';
-                        answerContainer.style.visibility = 'visible';
-                        answerContainer.classList.add('show');
-                    } finally {
-                        this.isFetchingAnswer = false;
-                        getAnswerButton.disabled = false;
-                        if (loadingIndicator) loadingIndicator.style.display = 'none';
-                        if (buttonTextSpan) buttonTextSpan.style.display = 'block';
                     }
-                };
-                await processQuestion();
+                } catch (error) {
+                    answerContent.textContent = `Error: ${error.message}`;
+                    answerContainer.style.display = 'flex';
+                    answerContainer.style.visibility = 'visible';
+                    answerContainer.classList.add('show');
+                } finally {
+                    this.isFetchingAnswer = false;
+                    getAnswerButton.disabled = false;
+                    if (loadingIndicator) loadingIndicator.style.display = 'none';
+                    if (buttonTextSpan) buttonTextSpan.style.display = 'block';
+                }
             });
         }
     }
